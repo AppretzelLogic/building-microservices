@@ -3,7 +3,7 @@ package handlers
 import (
 	"log"
 	"net/http"
-	"product-api/data"
+	"github.com/AppretzelLogic/go-microservices/product-api/data"
 )
 
 // Products is a http.Handler
