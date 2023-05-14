@@ -1,23 +1,40 @@
 package handlers
 
 import (
+	"log"
 	"net/http"
 	"github.com/AppretzelLogic/go-microservices/product-api/data"
-	"github.com/gorilla/mux"
 )
 
 // Products is a http.Handler
-type ProductServiceHandler struct {}
+type ProductServiceHandler struct {
+	l *log.Logger
+}
 
 // NewProducts creates a products handler with the given logger
-func (ph *ProductServiceHandler) NewProductServiceHandler(w http.ResponseWriter, r *http.Request) {
-	// fetch the products from the datastore
-	lp := data.GetProducts()
-	// serialize the list to JSON
-	err := lp.ToJSON(w)
-	if err != nil {
-		http.Error(w, "Unable to marshal json", http.StatusInternalServerError)
+func NewProductServiceHandler(l *log.Logger) *ProductServiceHandler {
+	return &ProductServiceHandler{l}
+}
+
+// ServeHTTP is the main entry point for the handler and satisfies the http.Handler interface
+func (ph *ProductServiceHandler) ServeHTTP(rw http.ResponseWriter, r *http.Request) {
+	// handle GET
+	if r.Method == http.MethodGet {
+		ph.getProductHandler(rw, r)
+		return
 	}
+	// handle POST
+	if r.Method == http.MethodPost {
+		ph.addProductHandler(rw, r)
+		return
+	}
+	// handle PUT
+	if r.Method == http.MethodPut {
+		ph.updateProductHandler(rw, r)
+		return
+	}
+	// catch all
+	rw.WriteHeader(http.StatusMethodNotAllowed)
 }
 
 // getProducts returns the products from the data store
@@ -58,19 +75,4 @@ func (ph *ProductServiceHandler) updateProductHandler(rw http.ResponseWriter, r 
 		return
 	}
 
-
 }
-// ServeHttp is the main entry point for the handler and satisfies the http.Handler interface
-// interface
-func (p *ProductServiceHandler) ServeAPI(endpoint string) error {
-	// handle GET
-	handler := &ProductServiceHandler{}
-	r := mux.NewRouter()
-	ProductServiceHandler := r.PathPrefix("/products").Subrouter()
-	ProductServiceHandler.Methods("GET").Path("").HandlerFunc(handler.NewProductServiceHandler)
-	ProductServiceHandler.Methods("POST").Path("").HandlerFunc(handler.addProductHandler)
-	ProductServiceHandler.Methods("PUT").Path("").HandlerFunc(handler.updateProductHandler)
-	ProductServiceHandler.Methods("GET").Path("/{id:[0-9]+}").HandlerFunc(handler.getProductHandler)
-	return http.ListenAndServe(endpoint, r)
-}
-
