@@ -20,7 +20,6 @@ func NewProducts(l *log.Logger) *Products {
 	return &Products{l}
 }
 
-
 // getProducts returns the products from the data store
 func (p *Products) GetProductHandler(rw http.ResponseWriter, r *http.Request) {
 	p.l.Println("Handle GET Products")
@@ -45,7 +44,7 @@ func (p *Products) AddProduct(rw http.ResponseWriter, r *http.Request) {
 
 func (p *Products) UpdateProducts(rw http.ResponseWriter, r *http.Request) {
 	vars := mux.Vars(r)
-	id, err :=  strconv.Atoi(vars["id"])
+	id, err := strconv.Atoi(vars["id"])
 	if err != nil {
 		http.Error(rw, "Unable to convert id", http.StatusBadRequest)
 		return
@@ -77,6 +76,18 @@ func (p Products) MiddlewareValidateProduct(next http.Handler) http.Handler {
 		if err != nil {
 			p.l.Panicln("[ERROR] deserializing product", err)
 			http.Error(rw, "Error reading product", http.StatusBadRequest)
+			return
+		}
+
+		// validate the product
+		err = prod.Validate()
+		if err != nil {
+			p.l.Panicln("[ERROR] validating product", err)
+			http.Error(
+				rw,
+				"Error validating product",
+				http.StatusBadRequest,
+			)
 			return
 		}
 
