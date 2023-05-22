@@ -1,29 +1,32 @@
 package handlers
 
 import (
+	"context"
+	"log"
 	"net/http"
+	"strconv"
+
 	"github.com/AppretzelLogic/go-microservices/product-api/data"
 	"github.com/gorilla/mux"
 )
 
 // Products is a http.Handler
-type ProductServiceHandler struct {}
+type Products struct {
+	l *log.Logger
+}
 
 // NewProducts creates a products handler with the given logger
-func (ph *ProductServiceHandler) NewProductServiceHandler(w http.ResponseWriter, r *http.Request) {
-	// fetch the products from the datastore
-	lp := data.GetProducts()
-	// serialize the list to JSON
-	err := lp.ToJSON(w)
-	if err != nil {
-		http.Error(w, "Unable to marshal json", http.StatusInternalServerError)
-	}
+func NewProducts(l *log.Logger) *Products {
+	return &Products{l}
 }
 
 // getProducts returns the products from the data store
-func (ph *ProductServiceHandler) getProductHandler(rw http.ResponseWriter, r *http.Request) {
+func (p *Products) GetProductHandler(rw http.ResponseWriter, r *http.Request) {
+	p.l.Println("Handle GET Products")
+
 	// fetch the products from the datastore
 	lp := data.GetProducts()
+
 	// serialize the list to JSON
 	err := lp.ToJSON(rw)
 	if err != nil {
@@ -31,23 +34,26 @@ func (ph *ProductServiceHandler) getProductHandler(rw http.ResponseWriter, r *ht
 	}
 }
 
-func (ph *ProductServiceHandler) addProductHandler(rw http.ResponseWriter, r *http.Request) {
-	prod := &data.Product{}
-	err := prod.FromJSON(r.Body)
-	if err != nil {
-		http.Error(rw, "Unable to marshal json", http.StatusInternalServerError)
-	}
+func (p *Products) AddProduct(rw http.ResponseWriter, r *http.Request) {
+	p.l.Println("Handle POST Product")
 
+	prod := r.Context().Value(KeyProduct{}).(data.Product)
+
+	data.AddProduct(&prod)
 }
 
-func (ph *ProductServiceHandler) updateProductHandler(rw http.ResponseWriter, r *http.Request) {
-	prod := &data.Product{}
-	err := prod.FromJSON(r.Body)
+func (p *Products) UpdateProducts(rw http.ResponseWriter, r *http.Request) {
+	vars := mux.Vars(r)
+	id, err := strconv.Atoi(vars["id"])
 	if err != nil {
-		http.Error(rw, "Unable to marshal json", http.StatusInternalServerError)
+		http.Error(rw, "Unable to convert id", http.StatusBadRequest)
+		return
 	}
-	var id int
-	err = data.UpdateProduct(id, prod)
+
+	p.l.Println("Handle PUT Product", id)
+	prod := r.Context().Value(KeyProduct{}).(data.Product)
+
+	err = data.UpdateProduct(id, &prod)
 	if err == data.ErrProductNotFound {
 		http.Error(rw, "Product not found", http.StatusNotFound)
 		return
@@ -58,19 +64,38 @@ func (ph *ProductServiceHandler) updateProductHandler(rw http.ResponseWriter, r 
 		return
 	}
 
-
-}
-// ServeHttp is the main entry point for the handler and satisfies the http.Handler interface
-// interface
-func (p *ProductServiceHandler) ServeAPI(endpoint string) error {
-	// handle GET
-	handler := &ProductServiceHandler{}
-	r := mux.NewRouter()
-	ProductServiceHandler := r.PathPrefix("/products").Subrouter()
-	ProductServiceHandler.Methods("GET").Path("").HandlerFunc(handler.NewProductServiceHandler)
-	ProductServiceHandler.Methods("POST").Path("").HandlerFunc(handler.addProductHandler)
-	ProductServiceHandler.Methods("PUT").Path("").HandlerFunc(handler.updateProductHandler)
-	ProductServiceHandler.Methods("GET").Path("/{id:[0-9]+}").HandlerFunc(handler.getProductHandler)
-	return http.ListenAndServe(endpoint, r)
 }
 
+type KeyProduct struct{}
+
+func (p Products) MiddlewareValidateProduct(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(rw http.ResponseWriter, r *http.Request) {
+		prod := data.Product{}
+
+		err := prod.FromJSON(r.Body)
+		if err != nil {
+			p.l.Panicln("[ERROR] deserializing product", err)
+			http.Error(rw, "Error reading product", http.StatusBadRequest)
+			return
+		}
+
+		// validate the product
+		err = prod.Validate()
+		if err != nil {
+			p.l.Panicln("[ERROR] validating product", err)
+			http.Error(
+				rw,
+				"Error validating product",
+				http.StatusBadRequest,
+			)
+			return
+		}
+
+		// add the product to the context
+		ctx := context.WithValue(r.Context(), KeyProduct{}, prod)
+		req := r.WithContext(ctx)
+
+		// call the next handler, which can be another middleware in the chain, or the final handler
+		next.ServeHTTP(rw, req)
+	})
+}
