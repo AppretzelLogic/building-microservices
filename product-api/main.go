@@ -2,14 +2,16 @@ package main
 
 import (
 	"context"
-	"github.com/AppretzelLogic/go-microservices/product-api/handlers"
-	"github.com/gorilla/mux"
-	"github.com/nicholasjackson/env"
+
 	"log"
 	"net/http"
 	"os"
 	"os/signal"
 	"time"
+
+	"github.com/AppretzelLogic/go-microservices/handlers"
+	"github.com/gorilla/mux"
+	"github.com/nicholasjackson/env"
 )
 
 var bindAddress = env.String("BIND_ADDRESS", false, ":9090", "Bind address for the server")
