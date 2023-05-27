@@ -11,7 +11,7 @@ func TestChecksValidation(t *testing.T) {
 		SKU:   "abc-abc-abc",
 	}
 
-	err := p.Validate()
+	err := p.date()
 
 	if err != nil {
 		t.Fatal(err)
